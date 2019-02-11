@@ -1,3 +1,17 @@
+#### README for this project - Model Documentation
+- the maibn code is in main.cpp. 
+- helper.cpp has functions for coordinate manipulation and conversions 
+- The model uses 2 points from previous trajectory (lines 181-205) plus 3 points in future which are 40, 80, 120 meters ahead (lines 208-218). so, 5 points in total: lines 
+- These 5 points are then converted to local coordinates of the car . lines 221-227
+- Then, I use spline to smooth trajectory and build more points using the 5 points mentioned before: lines 230-272
+- The car tries to go at a speed close to speed_limit, unless there is a car in front of it
+- If there is a car in front, the car tries to change lane to left if there is no car on left or change to right if there is no car on right. lines 154-162
+- To detect if there is car on left or right I use MAX_SPACE as criteria . lines 137-138
+- I use d/4 to detect each car's lane and use the information to set flags car_left or car_right : lines 144-150
+
+
+
+################### Generic README
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
    

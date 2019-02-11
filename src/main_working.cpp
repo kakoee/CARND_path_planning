@@ -15,10 +15,6 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
-#define MAX_SPEED  49
-#define MAX_ACC  .224
-#define MIN_SPACE 30 // minmum space between two cars
-
 int main() {
   uWS::Hub h;
 
@@ -64,9 +60,7 @@ int main() {
   int lane = 1;
 
   // Reference velocity.
-  double ref_velocity = 48.0; // mph
-
-
+  double ref_velocity = 45.0; // mph
 
   h.onMessage([&ref_velocity, &lane, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
@@ -116,57 +110,63 @@ int main() {
             // Prediction : Analysing other cars positions.
             bool car_ahead = false;
             bool car_left = false;
-            bool car_right = false;
-            double speed_change = 0;
-
+            bool car_righ = false;
             for ( int i = 0; i < sensor_fusion.size(); i++ ) {
                 float d = sensor_fusion[i][6];
-                int car_lane;
-                car_lane = d/4;
-                if (car_lane < 0 || car_lane>2) {
+                int car_lane = -1;
+                // is it on the same lane we are
+                if ( d > 0 && d < 4 ) {
+                  car_lane = 0;
+                } else if ( d > 4 && d < 8 ) {
+                  car_lane = 1;
+                } else if ( d > 8 && d < 12 ) {
+                  car_lane = 2;
+                }
+                if (car_lane < 0) {
                   continue;
                 }
-                //std::cout<< "other car lane:"<< car_lane << std::endl;
+                // Find car speed.
                 double vx = sensor_fusion[i][3];
                 double vy = sensor_fusion[i][4];
-                double other_car_speed = sqrt(vx*vx + vy*vy);
-                double other_car_s = sensor_fusion[i][5];
-                // Estimate other car s position after previous trajectory.
-                other_car_s += ((double)prev_size*0.02*other_car_speed);
-
-                bool other_car_ahead_near = (car_s < other_car_s) && (car_s + MIN_SPACE) > other_car_s;
-                bool other_car_behind_near = (other_car_s<car_s) && (other_car_s + MIN_SPACE) > car_s;
-                
-                //std::cout<< "car_s:"<< car_s <<  "--other_car_s" << other_car_s << std::endl;
-                //std::cout<< "other_car_ahead_near:"<< other_car_ahead_near <<  "--other_car_behind_near" << other_car_behind_near << std::endl << std::endl;
-
+                double check_speed = sqrt(vx*vx + vy*vy);
+                double check_car_s = sensor_fusion[i][5];
+                // Estimate car s position after executing previous trajectory.
+                check_car_s += ((double)prev_size*0.02*check_speed);
 
                 if ( car_lane == lane ) {
-                  car_ahead |= other_car_ahead_near;
-                } else if ( car_lane - lane == -1 && !car_left) {
-                  car_left |= (other_car_ahead_near) | (other_car_behind_near);
-                } else if ( car_lane - lane == 1 && !car_right) {
-                  car_right |= (other_car_ahead_near) | (other_car_behind_near);
+                  // Car in our lane.
+                  car_ahead |= check_car_s > car_s && check_car_s - car_s < 30;
+                } else if ( car_lane - lane == -1 ) {
+                  // Car left
+                  car_left |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
+                } else if ( car_lane - lane == 1 ) {
+                  // Car right
+                  car_righ |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
                 }
             }
-            //std::cout<< "car_left:"<< car_left <<  "--car right" << car_right << std::endl;
 
+            // Behavior : Let's see what to do.
+            double speed_diff = 0;
+            const double MAX_SPEED = 49.5;
+            const double MAX_ACC = .224;
             if ( car_ahead ) { // Car ahead
-              if ( lane > 0  && !car_left) { // if there is no car on left and there is a left lane.
-                lane--; // Change left.
-              } else if ( lane != 2  && !car_right){// if there is no car on right and there is a right lane.
-                lane++; // Change right.
-              } else { // if no lane change is possible, decrease speed
-                speed_change = -1 * MAX_ACC;
+              if ( !car_left && lane > 0 ) {
+                // if there is no car left and there is a left lane.
+                lane--; // Change lane left.
+              } else if ( !car_righ && lane != 2 ){
+                // if there is no car right and there is a right lane.
+                lane++; // Change lane right.
+              } else {
+                speed_diff -= MAX_ACC;
               }
-            } else { // no car ahead
-              if ( lane != 1 ){ 
-                if ( ( lane == 0 && !car_right ) || ( lane == 2 && !car_left ) ) {
-                  lane = 1; // change lane to center.
+            } else {
+              if ( lane != 1 ) { // if we are not on the center lane.
+                if ( ( lane == 0 && !car_righ ) || ( lane == 2 && !car_left ) ) {
+                  lane = 1; // Back to center.
                 }
               }
               if ( ref_velocity < MAX_SPEED ) {
-                speed_change = 1 * MAX_ACC;
+                speed_diff += MAX_ACC;
               }
             }
 
@@ -205,9 +205,9 @@ int main() {
             }
 
             // Setting up target points in the future.
-            vector<double> next_wp0 = getXY(car_s + 40, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp1 = getXY(car_s + 80, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp2 = getXY(car_s + 120, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp0 = getXY(car_s + 20, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s + 40, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s + 80, 2 + 4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
             ptsx.push_back(next_wp0[0]);
             ptsx.push_back(next_wp1[0]);
@@ -246,7 +246,7 @@ int main() {
             double x_add_on = 0;
 
             for( int i = 1; i < 60 - prev_size; i++ ) {
-              ref_velocity += speed_change;
+              ref_velocity += speed_diff;
               if ( ref_velocity > MAX_SPEED ) {
                 ref_velocity = MAX_SPEED;
               } else if ( ref_velocity < MAX_ACC ) {
