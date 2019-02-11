@@ -64,7 +64,7 @@ int main() {
   int lane = 1;
 
   // Reference velocity.
-  double ref_velocity = 48.0; // mph
+  double ref_velocity = 45.0; // mph
 
 
 
@@ -227,8 +227,8 @@ int main() {
             }
 
             // Create the spline.
-            tk::spline s;
-            s.set_points(ptsx, ptsy);
+            tk::spline my_spline;
+            my_spline.set_points(ptsx, ptsy);
 
             // Output path points from previous path for continuity.
           	vector<double> next_x_vals;
@@ -240,7 +240,7 @@ int main() {
 
             // Calculate distance y position on 30 m ahead.
             double target_x = 20.0;
-            double target_y = s(target_x);
+            double target_y = my_spline(target_x);
             double target_dist = sqrt(target_x*target_x + target_y*target_y);
 
             double x_add_on = 0;
@@ -254,7 +254,7 @@ int main() {
               }
               double N = target_dist/(0.02*ref_velocity/2.24);
               double x_point = x_add_on + target_x/N;
-              double y_point = s(x_point);
+              double y_point = my_spline(x_point);
 
               x_add_on = x_point;
 
